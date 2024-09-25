@@ -9,6 +9,7 @@ import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -21,11 +22,14 @@ import java.util.concurrent.TimeUnit;
  */
 public class OSFileIO {
 
-    static byte[] data = "1234456\n".getBytes(StandardCharsets.UTF_8);
-    public static final String linux_path = "/mashibing/os/out.txt";
+    public static final String linux_path = "/Users/zhaosong/workspace-data/out.txt";
     public static final String window_path = "out.txt";
-
+    static byte[] data = "1234456\n".getBytes(StandardCharsets.UTF_8);
     static String path = window_path;
+
+    static {
+        String os = System.getProperty("os.name");
+    }
 
     public static void main(String[] args) throws Exception {
         switch (args[0]) {
@@ -50,11 +54,15 @@ public class OSFileIO {
     //最基本的file写
     public static void testBasicFileIO() throws Exception {
         File file = new File(path);
-        FileOutputStream fos = new FileOutputStream(file);
-        while (true) {
-            // 睡眠会产生很多锁的系统调用的接口, 所以实际测试时需要注释掉
-            TimeUnit.SECONDS.sleep(1);
-            fos.write(data);
+        try (FileOutputStream fos = new FileOutputStream(file);) {
+            while (true) {
+                // 睡眠会产生很多锁的系统调用的接口, 所以实际测试时需要注释掉
+                TimeUnit.SECONDS.sleep(1);
+                fos.write(data);
+                fos.flush();
+            }
+        } finally {
+
         }
     }
 
@@ -62,11 +70,15 @@ public class OSFileIO {
     // 数据先进入数组jvm 8k -> 然后调用系统的内核[os kernel]
     public static void testBufferedFileIO() throws Exception {
         File file = new File(path);
-        BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(file));
-        while (true) {
-            // 睡眠会产生很多锁的系统调用的接口, 所以实际测试时需要注释掉
-            TimeUnit.SECONDS.sleep(1);
-            bos.write(data);
+        try (BufferedOutputStream bos = new BufferedOutputStream(Files.newOutputStream(file.toPath()));) {
+            while (true) {
+                // 睡眠会产生很多锁的系统调用的接口, 所以实际测试时需要注释掉
+                TimeUnit.SECONDS.sleep(1);
+                bos.write(data);
+                bos.flush();
+            }
+        } finally {
+
         }
     }
 
@@ -92,13 +104,27 @@ public class OSFileIO {
         System.out.println("mark: " + buffer);
 
         // 读取时, pos移动
-        System.out.println(buffer.get());
+        System.out.println((char) buffer.get());
         System.out.println("-------------------get---------------------");
         System.out.println("mark: " + buffer);
 
         // 从读切换到写,跳过读取的位置, 也就是pos向后移动, limit=cap
         buffer.compact();
         System.out.println("-------------------compact------------------------");
+        System.out.println("mark: " + buffer);
+
+        buffer.put("456".getBytes());
+        System.out.println("-------------------put:456--------------------");
+        System.out.println("mark: " + buffer);
+
+        // 从写切换为读, 此时limit=pos, pos=0, 这样就能保证读取的时候不会发生异常[pos,limit]
+        buffer.flip(); // 读写交替
+        System.out.println("-------------------flip---------------------");
+        System.out.println("mark: " + buffer);
+
+        // 读取时, pos移动
+        System.out.println((char) buffer.get());
+        System.out.println("-------------------get---------------------");
         System.out.println("mark: " + buffer);
 
         buffer.clear();
