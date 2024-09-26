@@ -24,30 +24,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class NIOServer14_MultiplexingMoreThreadsV1 {
 
+    int port = 9090;
     private ServerSocketChannel server = null;
-
     private Selector selector1 = null; // linux多路复用器(select/poll  epoll)
     private Selector selector2 = null; // linux多路复用器(select/poll  epoll)
     private Selector selector3 = null; // linux多路复用器(select/poll  epoll)
-
-    int port = 9090;
-
-    public void initServer() {
-        try {
-            server = ServerSocketChannel.open();
-            server.bind(new InetSocketAddress(port));
-            server.configureBlocking(false);
-
-            // 多路复用器
-            selector1 = Selector.open();
-            selector2 = Selector.open();
-            selector3 = Selector.open();
-
-            server.register(selector1, SelectionKey.OP_ACCEPT);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 
     public static void main(String[] args) throws InterruptedException {
         NIOServer14_MultiplexingMoreThreadsV1 service = new NIOServer14_MultiplexingMoreThreadsV1();
@@ -69,15 +50,29 @@ public class NIOServer14_MultiplexingMoreThreadsV1 {
 
     }
 
+    public void initServer() {
+        try {
+            server = ServerSocketChannel.open();
+            server.bind(new InetSocketAddress(port));
+            server.configureBlocking(false);
+
+            // 多路复用器
+            selector1 = Selector.open();
+            selector2 = Selector.open();
+            selector3 = Selector.open();
+
+            server.register(selector1, SelectionKey.OP_ACCEPT);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     static class NioThread extends Thread {
-        private Selector selector;
         static int selectors = 0;
-
-        int id = 0;
-
         volatile static BlockingQueue<SocketChannel>[] queue;
-
         static AtomicInteger idx = new AtomicInteger();
+        int id = 0;
+        private Selector selector;
 
         public NioThread(Selector selector, int n) {
             this.selector = selector;
@@ -134,12 +129,12 @@ public class NIOServer14_MultiplexingMoreThreadsV1 {
         private void readHandler(SelectionKey key) {
             try {
                 SocketChannel client = (SocketChannel) key.channel();
-                // 在acceptHandler 方法中注册的数组
+                // 在acceptHandler 方法中注册的数组(存在数据分包发送的问题)
                 ByteBuffer buffer = (ByteBuffer) key.attachment();
-                buffer.clear();
                 int len = client.read(buffer);
-                while (len != -1) {
+                if (len != -1) {
                     System.out.println("接收:" + new String(buffer.array(), 0, len));
+                    buffer.clear();
                 }
             } catch (IOException e) {
                 e.printStackTrace();
