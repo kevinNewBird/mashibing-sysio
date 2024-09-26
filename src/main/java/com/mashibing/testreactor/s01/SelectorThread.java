@@ -1,4 +1,4 @@
-package com.mashibing.testreactor;
+package com.mashibing.testreactor.s01;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -29,8 +29,11 @@ public class SelectorThread implements Runnable {
     // 通讯队列
     LinkedBlockingQueue<Channel> lbq = new LinkedBlockingQueue<>();
 
-    public SelectorThread() {
+    SelectorThreadGroup stg;
+
+    public SelectorThread(SelectorThreadGroup stg) {
         try {
+            this.stg = stg;
             this.selector = Selector.open();
 
         } catch (IOException e) {
@@ -95,6 +98,8 @@ public class SelectorThread implements Runnable {
      */
     private void acceptHandler(SelectionKey key) {
 
+        System.out.println(Thread.currentThread().getName() + "  acceptHandler....");
+
         ServerSocketChannel server = (ServerSocketChannel) key.channel();
         try {
             SocketChannel client = server.accept();
@@ -102,7 +107,7 @@ public class SelectorThread implements Runnable {
 
             // 单线程: 该客户端注册到服务端的selector上(client.register(selector,...))
             // 多线程下: 当前的selector注册到其他的, choose a selector and register
-
+            stg.nextSelector(client);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -118,6 +123,7 @@ public class SelectorThread implements Runnable {
      * @author zhao.song  2021/7/19  10:14
      */
     private void readHandler(SelectionKey key) {
+        System.out.println(Thread.currentThread().getName() + "  readHandler....");
         ByteBuffer buffer = (ByteBuffer) key.attachment();
         SocketChannel client = (SocketChannel) key.channel();
         buffer.clear();

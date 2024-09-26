@@ -1,9 +1,10 @@
-package com.mashibing.testreactor;
+package com.mashibing.testreactor.s02;
 
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.channels.*;
+import java.nio.channels.Channel;
+import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -28,7 +29,7 @@ public class SelectorThreadGroup {
         sts = new SelectorThread[num];
 
         for (int i = 0; i < num; i++) {
-            sts[i] = new SelectorThread();
+            sts[i] = new SelectorThread(this);
             new Thread(sts[i]).start();
         }
     }
@@ -50,12 +51,22 @@ public class SelectorThreadGroup {
     }
 
     // 无论 serverSocket  socket 都复用这个方法
-    private void nextSelector(Channel c) {
-        SelectorThread st = next();
-        // 1.通过队列传递数据/消息
-        st.lbq.add(c);
-        // 2.通过打断阻塞,让对应的线程去自己在打断后完成注册selector
-        st.selector.wakeup();
+    public void nextSelector(Channel c) {
+        if (c instanceof ServerSocketChannel) {
+            try {
+                sts[0].lbq.put(c);
+                sts[0].selector.wakeup();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        } else {
+            SelectorThread st = nextV2();
+            // 1.通过队列传递数据/消息
+            st.lbq.add(c);
+            // 2.通过打断阻塞,让对应的线程去自己在打断后完成注册selector
+            st.selector.wakeup();
+        }
+
 
         // 重点: c 可能是server , 也可能是 client
 //        ServerSocketChannel s = (ServerSocketChannel) c;
@@ -68,8 +79,12 @@ public class SelectorThreadGroup {
 
     }
 
-    private SelectorThread next() {
-        int index = xid.incrementAndGet() % sts.length;
-        return sts[index];
+
+    private SelectorThread nextV2() {
+        if (sts.length == 1) {
+            return sts[0];
+        }
+        int index = xid.incrementAndGet() % (sts.length - 1);// 轮询就会很尴尬:倾斜
+        return sts[index + 1];
     }
 }

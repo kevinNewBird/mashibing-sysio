@@ -1,4 +1,4 @@
-package com.mashibing.testreactor;
+package com.mashibing.testreactor.s01;
 
 /**
  * description  MainThread <BR>
